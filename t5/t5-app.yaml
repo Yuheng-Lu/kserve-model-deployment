@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamlit-t5-app
+  labels:
+    app: streamlit-t5
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streamlit-t5
+  template:
+    metadata:
+      labels:
+        app: streamlit-t5
+    spec:
+      containers:
+      - name: streamlit-t5-container
+        image: yuhenglu/streamlit-t5-app
+        ports:
+        - containerPort: 8501
+        env:
+        - name: API_URL
+          value: "http://huggingface-t5-predictor-00001-private.kserve-test.svc.cluster.local/openai/v1/completions"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamlit-t5-service
+  labels:
+    app: streamlit-t5
+spec:
+  selector:
+    app: streamlit-t5
+  ports:
+  - protocol: TCP
+    port: 8501
+    targetPort: 8501
+  type: ClusterIP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: streamlit-t5-gateway
+spec:
+  selector:
+    istio: ingressgateway 
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - streamlit-t5.kserve-test.example.com
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: streamlit-t5-vs
+spec:
+  hosts:
+  - streamlit-t5.kserve-test.example.com
+  gateways:
+  - streamlit-t5-gateway
+  http:
+  - route:
+    - destination:
+        host: streamlit-t5-service.default.svc.cluster.local
+        port:
+          number: 8501

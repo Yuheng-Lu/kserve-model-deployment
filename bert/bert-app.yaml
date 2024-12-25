@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamlit-bert-app
+  labels:
+    app: streamlit-bert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streamlit-bert
+  template:
+    metadata:
+      labels:
+        app: streamlit-bert
+    spec:
+      containers:
+      - name: streamlit-bert-container
+        image: yuhenglu/streamlit-bert-app
+        ports:
+        - containerPort: 8502
+        env:
+        - name: API_URL
+          value: "http://huggingface-bert-predictor-00001-private.kserve-test.svc.cluster.local/v1/models/bert:predict"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamlit-bert-service
+  labels:
+    app: streamlit-bert
+spec:
+  selector:
+    app: streamlit-bert
+  ports:
+  - protocol: TCP
+    port: 8502
+    targetPort: 8502
+  type: ClusterIP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: streamlit-bert-gateway
+spec:
+  selector:
+    istio: ingressgateway 
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - streamlit-bert.kserve-test.example.com
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: streamlit-bert-vs
+spec:
+  hosts:
+  - streamlit-bert.kserve-test.example.com
+  gateways:
+  - streamlit-bert-gateway
+  http:
+  - route:
+    - destination:
+        host: streamlit-bert-service.default.svc.cluster.local
+        port:
+          number: 8502
